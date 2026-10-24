@@ -1,0 +1,280 @@
+// chart's tests: the ticks and their labels, the frame's arithmetic, the
+// ranges a chart works out from its data, and saving charts as pictures
+// and PDFs (every example in the README among them). `tessel run tests`
+// prints a line per check and exits with 1 if any failed. The pictures it
+// saves are in the temporary folder's chart-tests folder, to look at.
+//
+// Author: Alexius Academia
+// Date: 2026-10-24
+
+import ".."
+
+// Checks that `got` is within `within` of `expected`: 1 if it isn't.
+fn near(_ name: String, _ got: Float, _ expected: Float, within: Float = 1e-12) -> Int {
+    if abs(got - expected) <= within {
+        print("ok    {name}: {got}")
+        return 0
+    }
+    print("FAIL  {name}: {got}, expected {expected}")
+    1
+}
+
+// Checks that every value of `got` is within `within` of `expected`.
+fn nearAll(_ name: String, _ got: [Float], _ expected: [Float], within: Float = 1e-12) -> Int {
+    var ok = got.count == expected.count
+    if ok {
+        for i in 0..got.count {
+            if !(abs(got[i] - expected[i]) <= within * max(1.0, abs(expected[i]))) {
+                ok = false
+            }
+        }
+    }
+    if ok {
+        print("ok    {name}: {got}")
+        return 0
+    }
+    print("FAIL  {name}: {got}, expected {expected}")
+    1
+}
+
+// Checks that `got` is `expected`.
+fn same(_ name: String, _ got: String, _ expected: String) -> Int {
+    if got == expected {
+        print("ok    {name}: {got}")
+        return 0
+    }
+    print("FAIL  {name}: \"{got}\", expected \"{expected}\"")
+    1
+}
+
+// Checks that `got` is true.
+fn holds(_ name: String, _ got: Bool) -> Int {
+    if got {
+        print("ok    {name}")
+        return 0
+    }
+    print("FAIL  {name}")
+    1
+}
+
+// The frame a chart would have, drawn `width` × `height` points.
+fn frameOf(_ c: chart.Chart, width: Float = 600, height: Float = 400) -> chart.Frame {
+    var got = chart.Frame(left: 0, top: 0, width: 1, height: 1, xMin: 0, xMax: 1, yMin: 0, yMax: 1)
+    let ignored = renderImage(path: joinPath(outFolder(), "frame.png"), width: width, height: height) { g in
+        got = c.frame(g)
+    }
+    got
+}
+
+// Where the tests save their pictures.
+fn outFolder() -> String {
+    joinPath(tempFolder(), "chart-tests")
+}
+
+// The ticks and their labels.
+fn axes() -> Int {
+    var failed = 0
+    failed += near("tickStep 7.3 / 5", chart.tickStep(span: 7.3, count: 5), 2.0)
+    failed += near("tickStep 1 / 5", chart.tickStep(span: 1.0, count: 5), 0.2)
+    failed += near("tickStep 450 / 4: no more than 4 ticks", chart.tickStep(span: 450.0, count: 4), 200.0, within: 1e-9)
+    failed += near("tickStep of nothing", chart.tickStep(span: 0.0, count: 5), 1.0)
+    failed += nearAll("ticks 0 to 7.3", chart.ticks(from: 0, to: 7.3, count: 5), [0, 2, 4, 6])
+    failed += nearAll("ticks -1 to 1", chart.ticks(from: -1, to: 1, count: 4), [-1, -0.5, 0, 0.5, 1])
+    failed += nearAll("ticks 0.1 to 0.3 don't creep", chart.ticks(from: 0.1, to: 0.3, count: 2), [0.1, 0.2, 0.3])
+    failed += holds("ticks: 0 is 0, not -0", chart.ticks(from: -0.3, to: 0.3, count: 6).contains(0.0))
+    failed += nearAll("logTicks 1 to 1000", chart.logTicks(from: 1, to: 1000, count: 5), [1, 10, 100, 1000])
+    failed += nearAll("logTicks 1 to 50 add 2 and 5", chart.logTicks(from: 1, to: 50, count: 5), [1, 2, 5, 10, 20, 50])
+    failed += nearAll("logTicks over 9 decades skip some", chart.logTicks(from: 0.001, to: 1e6, count: 3), [0.001, 1, 1000, 1e6])
+    failed += holds("logTicks of a bad range", chart.logTicks(from: 0, to: 10, count: 5).isEmpty)
+    failed += same("tickLabel 0.5 by 0.25", chart.tickLabel(0.5, step: 0.25), "0.50")
+    failed += same("tickLabel 0 has its neighbours' decimals", chart.tickLabel(0.0, step: 0.2), "0.0")
+    failed += same("tickLabel 0.3 by 0.1", chart.tickLabel(0.30000000000000004, step: 0.1), "0.3")
+    failed += same("tickLabel 20 by 5", chart.tickLabel(20.0, step: 5.0), "20")
+    failed += same("tickLabel whole numbers", chart.tickLabel(-3.0, step: 1.0), "-3")
+    failed += same("tickLabel big", chart.tickLabel(2500000.0, step: 500000.0), "2.5e6")
+    failed += same("tickLabel a million", chart.tickLabel(1000000.0, step: 500000.0), "1e6")
+    failed += same("tickLabel small", chart.tickLabel(0.00002, step: 0.00001), "2e-5")
+    failed += same("tickLabel negative small", chart.tickLabel(-0.000035, step: 0.000005), "-3.5e-5")
+    failed
+}
+
+// The frame's arithmetic, both ways, on both kinds of axis.
+fn frames() -> Int {
+    var failed = 0
+    let f = chart.Frame(left: 50, top: 20, width: 400, height: 200, xMin: 0, xMax: 10, yMin: -1, yMax: 1)
+    failed += near("px at xMin", f.px(0), 50)
+    failed += near("px at xMax", f.px(10), 450)
+    failed += near("py at yMax is the top", f.py(1), 20)
+    failed += near("py at yMin is the bottom", f.py(-1), 220)
+    failed += near("xAt undoes px", f.xAt(f.px(3.7)), 3.7)
+    failed += near("yAt undoes py", f.yAt(f.py(-0.25)), -0.25)
+    failed += near("right", f.right, 450)
+    failed += near("bottom", f.bottom, 220)
+    failed += holds("contains", f.contains(100, 100) && !f.contains(10, 100) && !f.contains(100, 230))
+    let lg = chart.Frame(left: 0, top: 0, width: 300, height: 100, xMin: 1, xMax: 1000, yMin: 0, yMax: 1, xScale: .log)
+    failed += near("log px: 10 is a third of the way", lg.px(10), 100, within: 1e-9)
+    failed += near("log px: 100 is two thirds", lg.px(100), 200, within: 1e-9)
+    failed += near("log xAt undoes px", lg.xAt(lg.px(42)), 42, within: 1e-9)
+    failed += holds("log px of 0 is NaN", lg.px(0).isNaN && lg.px(-5).isNaN)
+    failed
+}
+
+// The ranges a chart works out from its data.
+fn ranges() -> Int {
+    var failed = 0
+    var lines = chart.Chart()
+    lines.line([0, 10], [0, 1])
+    let a = frameOf(lines)
+    failed += nearAll("a line's x range is its data", [a.xMin, a.xMax], [0, 10])
+    failed += nearAll("its y range is padded 5%", [a.yMin, a.yMax], [-0.05, 1.05])
+
+    var dots = chart.Chart()
+    dots.scatter([0, 10], [0, 1])
+    let b = frameOf(dots)
+    failed += nearAll("dots pad x too", [b.xMin, b.xMax], [-0.5, 10.5])
+
+    var bars = chart.Chart()
+    bars.bars(["a", "b", "c"], [3, 5, 4])
+    let c = frameOf(bars)
+    failed += nearAll("bars: x is the categories", [c.xMin, c.xMax], [-0.5, 2.5])
+    failed += nearAll("bars stand on 0", [c.yMin, c.yMax], [0, 5.25])
+    failed += holds("bars set the categories", bars.categories == ["a", "b", "c"])
+
+    var under = chart.Chart()
+    under.bars(["a", "b"], [-2, -4])
+    let d = frameOf(under)
+    failed += nearAll("bars below 0 hang from 0", [d.yMin, d.yMax], [-4.2, 0])
+
+    var area = chart.Chart()
+    area.area([0, 1, 2], [5, 6, 7])
+    let e = frameOf(area)
+    failed += near("an area reaches down to 0", e.yMin, 0)
+
+    var fixed = chart.Chart(xMin: -5, yMax: 100)
+    fixed.line([0, 10], [0, 50])
+    let g = frameOf(fixed)
+    failed += nearAll("the chart's own limits win", [g.xMin, g.xMax, g.yMax], [-5, 10, 100])
+
+    let empty = frameOf(chart.Chart())
+    failed += nearAll("an empty chart shows 0 to 1", [empty.xMin, empty.xMax, empty.yMin, empty.yMax], [0, 1, 0, 1])
+    let emptyLog = frameOf(chart.Chart(yScale: .log))
+    failed += nearAll("an empty log axis shows 1 to 10", [emptyLog.yMin, emptyLog.yMax], [1, 10])
+
+    var one = chart.Chart()
+    one.scatter([3], [7])
+    let h = frameOf(one)
+    failed += nearAll("one point gets room around it", [h.xMin, h.xMax, h.yMin, h.yMax], [2.7, 3.3, 6.3, 7.7], within: 1e-12)
+
+    var logs = chart.Chart(yScale: .log)
+    logs.line([0, 1, 2, 3], [100, 0, -1, 1000])
+    let k = frameOf(logs)
+    failed += holds("a log axis leaves out 0 and less", k.yMin > 50.0 && k.yMin < 100.0 && k.yMax > 1000.0)
+
+    var guides = chart.Chart()
+    guides.line([0, 1], [0, 1])
+    guides.horizontalLine(5)
+    guides.verticalLine(-3)
+    let m = frameOf(guides)
+    failed += holds("guides widen the ranges", m.yMax > 5.0 && m.xMin == -3.0)
+
+    var round = chart.Chart(equalAspect: true)
+    round.line([-1, 1], [-1, 1])
+    let n = frameOf(round, width: 600, height: 300)
+    failed += near("equalAspect: a unit is as long across as up", n.width / (n.xMax - n.xMin), n.height / (n.yMax - n.yMin), within: 1e-9)
+    failed += near("equalAspect widens about the middle", n.xMin + n.xMax, 0, within: 1e-9)
+
+    var labels = chart.Chart(title: "T", xLabel: "x", yLabel: "y")
+    labels.line([0, 1], [0, 1])
+    let p = frameOf(labels)
+    failed += holds("titles take room", p.top > a.top && p.left > a.left && p.bottom < a.bottom)
+    failed += holds("the frame fits the picture", p.left > 0.0 && p.right < 600.0 && p.top > 0.0 && p.bottom < 400.0)
+
+    let q = frameOf(lines, width: 30, height: 20)
+    failed += holds("a tiny picture still gives a frame", q.width >= 10.0 && q.height >= 10.0)
+    failed += holds("palette has 8 colors", chart.palette().count == 8)
+    failed
+}
+
+// Saving pictures and PDFs, with every kind of series in them.
+fn saving() -> Int {
+    var failed = 0
+    let folder = outFolder()
+    var c = chart.Chart(title: "Everything", xLabel: "x", yLabel: "y")
+    c.function(from: 0, to: 6, name: "sin") { x in sin(x) }
+    c.line([0, 2, 4, 6], [0.5, -0.5, 0.5, -0.5], name: "zigzag", dash: [5, 3], markers: true)
+    c.scatter([1, 3, 5], [0.8, -0.8, 0.2], name: "dots")
+    c.area([0, 3, 6], [0.2, 0.4, 0.1], name: "band")
+    c.horizontalLine(0.9, label: "high")
+    c.verticalLine(3, label: "middle")
+    c.point(x: 1.5708, y: 1, label: "peak")
+    let png = joinPath(folder, "everything.png")
+    failed += holds("savePNG", c.savePNG(png))
+    failed += holds("the PNG is there", fileExists(png))
+    let jpg = joinPath(folder, "everything.jpg")
+    failed += holds("savePNG as a JPEG", c.savePNG(jpg, width: 400, height: 250, scale: 1))
+    let pdf = joinPath(folder, "everything.pdf")
+    failed += holds("savePDF", c.savePDF(pdf))
+    failed += holds("the PDF is there", fileExists(pdf))
+    let size = imageSize(png)
+    failed += holds("the PNG is 1440 × 900 pixels", size?.0 == 1440 && size?.1 == 900)
+
+    var many = chart.Chart(title: "Thirty categories")
+    var names: [String] = []
+    var values: [Float] = []
+    for i in 0..30 {
+        names.append("Category {i + 1}")
+        values.append(Float(i % 7) + 1.0)
+    }
+    many.bars(names, values)
+    failed += holds("savePNG with crowded categories", many.savePNG(joinPath(folder, "crowded.png"), width: 500, height: 300))
+
+    var log = chart.Chart(title: "Both log", xScale: .log, yScale: .log, legend: .bottomTrailing)
+    log.line([1, 10, 100, 1000], [1, 100, 10000, 1000000], name: "y = x²")
+    failed += holds("savePNG with log axes", log.savePNG(joinPath(folder, "loglog.png")))
+    failed
+}
+
+// The README's examples, as written there.
+fn examples() -> Int {
+    var failed = 0
+    let folder = outFolder()
+
+    var c = chart.Chart(title: "Free fall", xLabel: "Time (s)", yLabel: "Distance (m)")
+    c.function(from: 0, to: 3, name: "d = g t² / 2") { t in 9.81 * t * t / 2.0 }
+    c.point(x: 2, y: 19.62, label: "19.6 m after 2 s")
+    failed += holds("README: free fall", c.savePNG(joinPath(folder, "fall.png")))
+
+    var rain = chart.Chart(title: "Monthly rainfall", yLabel: "Rain (mm)")
+    let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    rain.bars(months, [19, 8, 12, 25, 110, 260, 420, 470, 360, 190, 130, 60], name: "2025")
+    rain.bars(months, [25, 15, 9, 40, 150, 230, 380, 520, 300, 210, 100, 45], name: "2026")
+    failed += holds("README: rainfall", rain.savePNG(joinPath(folder, "rainfall.png")))
+
+    var fit = chart.Chart(title: "Spring test", xLabel: "Load (kN)", yLabel: "Extension (mm)")
+    fit.scatter([0, 1, 2, 3, 4, 5, 6], [0.1, 1.9, 4.1, 6.0, 8.2, 9.7, 12.1], name: "measured")
+    fit.line([0, 6], [-0.02, 12.04], name: "fit", dash: [6, 3])
+    failed += holds("README: spring test", fit.savePNG(joinPath(folder, "spring.png")))
+
+    var grain = chart.Chart(title: "Grain size distribution", xLabel: "Particle size (mm)", yLabel: "Percent finer (%)",
+        yMin: 0, yMax: 100, xScale: .log)
+    grain.line([0.002, 0.01, 0.075, 0.25, 0.6, 2.0, 4.75, 19], [2, 8, 22, 45, 63, 82, 93, 100], name: "sample A", markers: true)
+    grain.verticalLine(0.075, label: "No. 200")
+    grain.verticalLine(4.75, label: "No. 4")
+    failed += holds("README: grain size (PNG)", grain.savePNG(joinPath(folder, "grain.png")))
+    failed += holds("README: grain size (PDF)", grain.savePDF(joinPath(folder, "grain.pdf")))
+    failed
+}
+
+fn main() {
+    let ignored = createFolder(path: outFolder())
+    var failed = axes()
+    failed += frames()
+    failed += ranges()
+    failed += saving()
+    failed += examples()
+    if failed > 0 {
+        print("\n{failed} failed")
+        exit(1)
+    }
+    print("\nall passed (pictures in {outFolder()})")
+}

@@ -1,0 +1,32 @@
+// The README's pictures: `tessel run examples` saves them in docs/. Each
+// chart here is written exactly as the README shows it.
+//
+// Author: Alexius Academia
+// Date: 2026-10-24
+
+import ".."
+
+fn main() {
+    var c = chart.Chart(title: "Free fall", xLabel: "Time (s)", yLabel: "Distance (m)")
+    c.function(from: 0, to: 3, name: "d = g t² / 2") { t in 9.81 * t * t / 2.0 }
+    c.point(x: 2, y: 19.62, label: "19.6 m after 2 s")
+    print(c.savePNG("docs/fall.png", width: 640, height: 380))
+
+    var rain = chart.Chart(title: "Monthly rainfall", yLabel: "Rain (mm)")
+    let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    rain.bars(months, [19, 8, 12, 25, 110, 260, 420, 470, 360, 190, 130, 60], name: "2025")
+    rain.bars(months, [25, 15, 9, 40, 150, 230, 380, 520, 300, 210, 100, 45], name: "2026")
+    print(rain.savePNG("docs/rainfall.png", width: 640, height: 380))
+
+    var fit = chart.Chart(title: "Spring test", xLabel: "Load (kN)", yLabel: "Extension (mm)")
+    fit.scatter([0, 1, 2, 3, 4, 5, 6], [0.1, 1.9, 4.1, 6.0, 8.2, 9.7, 12.1], name: "measured")
+    fit.line([0, 6], [-0.02, 12.04], name: "fit", dash: [6, 3])
+    print(fit.savePNG("docs/spring.png", width: 640, height: 380))
+
+    var grain = chart.Chart(title: "Grain size distribution", xLabel: "Particle size (mm)", yLabel: "Percent finer (%)",
+        yMin: 0, yMax: 100, xScale: .log)
+    grain.line([0.002, 0.01, 0.075, 0.25, 0.6, 2.0, 4.75, 19], [2, 8, 22, 45, 63, 82, 93, 100], name: "sample A", markers: true)
+    grain.verticalLine(0.075, label: "No. 200")
+    grain.verticalLine(4.75, label: "No. 4")
+    print(grain.savePNG("docs/grain.png", width: 640, height: 380))
+}

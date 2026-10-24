@@ -1,0 +1,636 @@
+// chart: drawing a Chart. `layout` works out the axes' ranges and where the
+// plot area goes (leaving room for the tick numbers and titles); `render`
+// draws the grid, the series, the guides, the axes and the legend.
+//
+// Author: Alexius Academia
+// Date: 2026-10-24
+
+// Points between ticks, about, on each axis.
+let xTickSpacing = 80.0
+let yTickSpacing = 45.0
+let tickSize = 11.0
+
+// Whether the chart has bars, which make its x axis one of categories.
+fn hasBars(_ c: Chart) -> Bool {
+    c.series.any(where: { s in s.mark == .bars })
+}
+
+// The range of the data on one axis, padded so nothing sits on the frame,
+// with the chart's own limits in place of what it gives.
+fn axisRange(_ c: Chart, _ isX: Bool) -> (Float, Float) {
+    let scale = if isX { c.xScale } else { c.yScale }
+    let bars = hasBars(c)
+    var lo = 0.0
+    var hi = 0.0
+    if isX && bars {
+        lo = -0.5
+        hi = Float(max(c.categories.count, 1)) - 0.5
+    } else {
+        var values: [Float] = []
+        var pad = !isX
+        var fromZero = false
+        for s in c.series {
+            if isX {
+                values.appendAll(s.xs)
+                if s.mark == .scatter || s.size > 0.0 {
+                    pad = true
+                }
+            } else {
+                values.appendAll(s.ys)
+                if s.mark == .bars || s.mark == .area {
+                    fromZero = true
+                }
+            }
+        }
+        for g in c.guides {
+            if isX && g.kind != .horizontal {
+                values.append(g.x)
+                if g.kind == .point {
+                    pad = true
+                }
+            }
+            if !isX && g.kind != .vertical {
+                values.append(g.y)
+            }
+        }
+        var found = false
+        for v in values {
+            if v.isFinite && (scale == .linear || v > 0.0) {
+                if !found {
+                    lo = v
+                    hi = v
+                    found = true
+                } else {
+                    lo = min(lo, v)
+                    hi = max(hi, v)
+                }
+            }
+        }
+        if scale == .log {
+            if !found {
+                lo = 1.0
+                hi = 10.0
+            } else if lo == hi {
+                lo = lo / sqrt(10.0)
+                hi = hi * sqrt(10.0)
+            } else if pad {
+                let a = log10(lo)
+                let b = log10(hi)
+                lo = pow(10.0, a - 0.05 * (b - a))
+                hi = pow(10.0, b + 0.05 * (b - a))
+            }
+        } else {
+            if fromZero {
+                lo = min(lo, 0.0)
+                hi = max(hi, 0.0)
+                found = true
+            }
+            if !found {
+                lo = 0.0
+                hi = 1.0
+            } else if lo == hi {
+                var d = abs(lo) * 0.1
+                if d == 0.0 {
+                    d = 1.0
+                }
+                lo -= d
+                hi += d
+            } else if pad {
+                let d = 0.05 * (hi - lo)
+                // Bars and areas stand on 0: no gap under them.
+                if !(fromZero && lo == 0.0) {
+                    lo -= d
+                }
+                if !(fromZero && hi == 0.0) {
+                    hi += d
+                }
+            }
+        }
+    }
+    if isX {
+        lo = c.xMin ?? lo
+        hi = c.xMax ?? hi
+    } else {
+        lo = c.yMin ?? lo
+        hi = c.yMax ?? hi
+    }
+    if !(hi > lo) {
+        hi = lo + 1.0
+        if scale == .log {
+            hi = lo * 10.0
+        }
+    }
+    (lo, hi)
+}
+
+// The tick values on an axis from lo to hi that is `length` points long,
+// and the step between them (0 on a log axis).
+fn axisTicks(_ lo: Float, _ hi: Float, _ scale: Scale, _ length: Float, _ spacing: Float) -> ([Float], Float) {
+    let count = max(2, Int(length / spacing))
+    match scale {
+        .linear -> (ticks(from: lo, to: hi, count: count), tickStep(span: hi - lo, count: count))
+        .log -> (logTicks(from: lo, to: hi, count: count), 0.0)
+    }
+}
+
+// A tick's text on an axis.
+fn axisText(_ v: Float, _ step: Float, _ scale: Scale) -> String {
+    match scale {
+        .linear -> tickLabel(v, step: step)
+        .log -> logLabel(v)
+    }
+}
+
+// The widest of the y axis's tick texts, in points.
+fn widestYText(_ g: Graphics, _ lo: Float, _ hi: Float, _ scale: Scale, _ length: Float) -> Float {
+    let t = axisTicks(lo, hi, scale, length, yTickSpacing)
+    var w = 0.0
+    for v in t.0 {
+        w = max(w, g.textWidth(axisText(v, t.1, scale), size: tickSize))
+    }
+    w
+}
+
+// Where the chart's plot area goes in the rectangle, and what it shows.
+fn layout(_ c: Chart, _ g: Graphics, _ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Frame {
+    let xr = axisRange(c, true)
+    let yr = axisRange(c, false)
+    var top = 12.0
+    if c.title != "" {
+        top = 32.0
+    }
+    var bottom = 8.0 + tickSize + 6.0
+    if c.xLabel != "" {
+        bottom += 20.0
+    }
+    let ph = max(height - top - bottom, 10.0)
+    var left = 8.0 + widestYText(g, yr.0, yr.1, c.yScale, ph) + 6.0
+    if c.yLabel != "" {
+        left += 20.0
+    }
+    // Room on the right for half the last x tick's text.
+    var right = 14.0
+    if !hasBars(c) {
+        let t = axisTicks(xr.0, xr.1, c.xScale, max(width - left - right, 10.0), xTickSpacing)
+        if let last = t.0.last {
+            right = max(right, g.textWidth(axisText(last, t.1, c.xScale), size: tickSize) / 2.0 + 4.0)
+        }
+    }
+    let pw = max(width - left - right, 10.0)
+    var f = Frame(left: x + left, top: y + top, width: pw, height: ph,
+        xMin: xr.0, xMax: xr.1, yMin: yr.0, yMax: yr.1, xScale: c.xScale, yScale: c.yScale)
+    if c.equalAspect && c.xScale == .linear && c.yScale == .linear {
+        // Widen the axis that has room to spare, about the middle.
+        let sx = pw / (f.xMax - f.xMin)
+        let sy = ph / (f.yMax - f.yMin)
+        if sx > sy {
+            let extra = pw / sy - (f.xMax - f.xMin)
+            f.xMin -= extra / 2.0
+            f.xMax += extra / 2.0
+        } else {
+            let extra = ph / sx - (f.yMax - f.yMin)
+            f.yMin -= extra / 2.0
+            f.yMax += extra / 2.0
+        }
+    }
+    f
+}
+
+// Each series' color: its own, or the next of the chart's colors.
+fn seriesColors(_ c: Chart) -> [Color] {
+    var out: [Color] = []
+    var next = 0
+    var colors = c.colors
+    if colors.isEmpty {
+        colors = palette()
+    }
+    for s in c.series {
+        if let own = s.color {
+            out.append(own)
+        } else {
+            out.append(colors[next % colors.count])
+            next += 1
+        }
+    }
+    out
+}
+
+// A series' points on the canvas: x, y, x, y, …
+fn canvasPoints(_ f: Frame, _ s: Series) -> [Float] {
+    var out: [Float] = []
+    for i in 0..s.xs.count {
+        out.append(f.px(s.xs[i]))
+        out.append(f.py(s.ys[i]))
+    }
+    out
+}
+
+// Where on the canvas bars and areas stand: y = 0 when it's on the axis,
+// else the nearer edge.
+fn baseline(_ f: Frame) -> Float {
+    if f.yScale == .log {
+        return f.bottom
+    }
+    f.py(min(max(0.0, f.yMin), f.yMax))
+}
+
+// A dot with a ring of the background around it, to stand out on a line.
+fn dot(_ g: Graphics, _ x: Float, _ y: Float, _ radius: Float, _ color: Color) {
+    if x.isFinite && y.isFinite {
+        g.fillCircle(x: x, y: y, radius: radius + 1.5, color: .background)
+        g.fillCircle(x: x, y: y, radius: radius, color: color)
+    }
+}
+
+// Draws the chart in the rectangle and gives the frame it used.
+fn render(_ c: Chart, _ g: Graphics, _ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Frame {
+    let f = layout(c, g, x, y, width, height)
+    let bars = hasBars(c)
+    let xt = axisTicks(f.xMin, f.xMax, f.xScale, f.width, xTickSpacing)
+    let yt = axisTicks(f.yMin, f.yMax, f.yScale, f.height, yTickSpacing)
+
+    if c.grid {
+        drawMinorGrid(g, f, bars)
+        if !bars {
+            for v in xt.0 {
+                g.line(f.px(v), f.top, f.px(v), f.bottom, color: .separator)
+            }
+        }
+        for v in yt.0 {
+            g.line(f.left, f.py(v), f.right, f.py(v), color: .separator)
+        }
+    }
+
+    let colors = seriesColors(c)
+    let barCount = c.series.count(where: { s in s.mark == .bars })
+    var barIndex = 0
+    g.save()
+    g.clip(x: f.left, y: f.top, width: f.width, height: f.height)
+    for (i, s) in c.series.enumerated() {
+        let color = colors[i]
+        match s.mark {
+            .bars -> {
+                let slot = 0.8 / Float(max(barCount, 1))
+                let base = baseline(f)
+                for k in 0..s.ys.count {
+                    let x0 = Float(k) - 0.4 + Float(barIndex) * slot
+                    let a = f.px(x0) + 0.5
+                    let b = f.px(x0 + slot) - 0.5
+                    let top = f.py(s.ys[k])
+                    if top.isFinite && b > a {
+                        let radius = min(2.0, (b - a) / 4.0)
+                        g.fillRect(x: a, y: min(top, base), width: b - a, height: abs(base - top), color: color, radius: radius)
+                    }
+                }
+                barIndex += 1
+            }
+            .area -> {
+                let base = baseline(f)
+                let parts = runs(canvasPoints(f, s))
+                g.beginPath()
+                for part in parts {
+                    var outline: [Float] = [part[0], base]
+                    outline.appendAll(part)
+                    outline.append(part[part.count - 2])
+                    outline.append(base)
+                    g.lines(outline, closed: true)
+                }
+                g.beginLayer(opacity: 0.22)
+                g.fill(color)
+                g.endLayer()
+                strokeRuns(g, parts, color, s.width, s.dash)
+            }
+            .line -> {
+                let points = canvasPoints(f, s)
+                strokeRuns(g, runs(points), color, s.width, s.dash)
+                if s.size > 0.0 {
+                    var k = 0
+                    while k + 1 < points.count {
+                        dot(g, points[k], points[k + 1], s.size, color)
+                        k += 2
+                    }
+                }
+            }
+            .scatter -> {
+                let points = canvasPoints(f, s)
+                var k = 0
+                while k + 1 < points.count {
+                    if points[k].isFinite && points[k + 1].isFinite {
+                        g.fillCircle(x: points[k], y: points[k + 1], radius: s.size, color: color)
+                    }
+                    k += 2
+                }
+            }
+        }
+    }
+    g.restore()
+
+    drawGuides(c, g, f)
+
+    // The frame, the ticks' numbers and the titles.
+    g.strokeRect(x: f.left, y: f.top, width: f.width, height: f.height, color: .gray)
+    if bars {
+        drawCategories(c, g, f, x, x + width)
+    } else {
+        for v in xt.0 {
+            g.text(axisText(v, xt.1, f.xScale), x: f.px(v), y: f.bottom + 5.0, size: tickSize, color: .secondary, align: .top)
+        }
+    }
+    for v in yt.0 {
+        g.text(axisText(v, yt.1, f.yScale), x: f.left - 6.0, y: f.py(v), size: tickSize, color: .secondary, align: .trailing)
+    }
+    if c.title != "" {
+        g.text(c.title, x: f.left, y: f.top - 10.0, size: 14, weight: .semibold, align: .bottomLeading)
+    }
+    if c.xLabel != "" {
+        g.text(c.xLabel, x: f.left + f.width / 2.0, y: f.bottom + 6.0 + tickSize + 8.0, size: 12, color: .secondary, align: .top)
+    }
+    if c.yLabel != "" {
+        g.text(c.yLabel, x: x + 16.0, y: f.top + f.height / 2.0, size: 12, color: .secondary, align: .center, angle: -pi / 2.0)
+    }
+    drawLegend(c, g, f, colors)
+    f
+}
+
+// The categories' names under the bars, leaving some out when they don't
+// fit side by side, and kept between `left` and `right` (the chart's
+// edges).
+fn drawCategories(_ c: Chart, _ g: Graphics, _ f: Frame, _ left: Float, _ right: Float) {
+    let n = c.categories.count
+    if n == 0 {
+        return
+    }
+    var widest = 0.0
+    for name in c.categories {
+        widest = max(widest, g.textWidth(name, size: tickSize))
+    }
+    let room = f.width / Float(n)
+    let every = max(1, Int(ceil((widest + 8.0) / room)))
+    for (i, name) in c.categories.enumerated() {
+        if i % every == 0 {
+            let half = g.textWidth(name, size: tickSize) / 2.0
+            let cx = max(left + 2.0 + half, min(right - 2.0 - half, f.px(Float(i))))
+            g.text(name, x: cx, y: f.bottom + 5.0, size: tickSize, color: .secondary, align: .top)
+        }
+    }
+}
+
+// The levels, lines and points marked on the chart.
+fn drawGuides(_ c: Chart, _ g: Graphics, _ f: Frame) {
+    for guide in c.guides {
+        let color = guide.color ?? Color.secondary
+        match guide.kind {
+            .horizontal -> {
+                let sy = f.py(guide.y)
+                if sy.isFinite && sy >= f.top - 0.5 && sy <= f.bottom + 0.5 {
+                    g.beginPath()
+                    g.moveTo(f.left, sy)
+                    g.lineTo(f.right, sy)
+                    g.stroke(color, width: 1.5, dash: [6.0, 4.0])
+                    if guide.label != "" {
+                        g.text(guide.label, x: f.right - 6.0, y: sy - 3.0, size: 11, color: color, weight: .medium, align: .bottomTrailing, halo: .background, haloWidth: 2.0)
+                    }
+                }
+            }
+            .vertical -> {
+                let sx = f.px(guide.x)
+                if sx.isFinite && sx >= f.left - 0.5 && sx <= f.right + 0.5 {
+                    g.beginPath()
+                    g.moveTo(sx, f.top)
+                    g.lineTo(sx, f.bottom)
+                    g.stroke(color, width: 1.5, dash: [6.0, 4.0])
+                    if guide.label != "" {
+                        g.text(guide.label, x: sx + 4.0, y: f.top + 4.0, size: 11, color: color, weight: .medium, align: .topLeading, halo: .background, haloWidth: 2.0)
+                    }
+                }
+            }
+            .point -> {
+                let sx = f.px(guide.x)
+                let sy = f.py(guide.y)
+                if f.contains(sx, sy) {
+                    let pointColor = guide.color ?? Color.primary
+                    dot(g, sx, sy, 4.0, pointColor)
+                    if guide.label != "" {
+                        g.text(guide.label, x: sx + 7.0, y: sy - 4.0, size: 11, color: pointColor, weight: .medium, align: .bottomLeading, halo: .background, haloWidth: 2.0)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The legend: a sample and the name of each named series, in a box in a
+// corner of the plot area.
+fn drawLegend(_ c: Chart, _ g: Graphics, _ f: Frame, _ colors: [Color]) {
+    if c.legend == .hidden {
+        return
+    }
+    var widest = 0.0
+    var rows = 0
+    for s in c.series {
+        if s.name != "" {
+            widest = max(widest, g.textWidth(s.name, size: 11))
+            rows += 1
+        }
+    }
+    if rows == 0 {
+        return
+    }
+    let rowHeight = 17.0
+    let boxWidth = 8.0 + 20.0 + 6.0 + widest + 8.0
+    let boxHeight = 6.0 + Float(rows) * rowHeight + 2.0
+    var place = c.legend
+    if place == .automatic {
+        place = quietestCorner(c, g, f, boxWidth, boxHeight)
+    }
+    let corner = legendCorner(f, place, boxWidth, boxHeight)
+    let bx = corner.0
+    let by = corner.1
+    g.beginLayer(opacity: 0.88)
+    g.fillRect(x: bx, y: by, width: boxWidth, height: boxHeight, color: .background, radius: 4)
+    g.endLayer()
+    g.strokeRect(x: bx, y: by, width: boxWidth, height: boxHeight, color: .separator, radius: 4)
+    var row = 0
+    for (i, s) in c.series.enumerated() {
+        if s.name != "" {
+            let cy = by + 6.0 + Float(row) * rowHeight + rowHeight / 2.0 - 1.0
+            let sx = bx + 8.0
+            let color = colors[i]
+            match s.mark {
+                .line -> {
+                    g.beginPath()
+                    g.moveTo(sx, cy)
+                    g.lineTo(sx + 20.0, cy)
+                    g.stroke(color, width: min(s.width, 4.0), dash: s.dash)
+                    if s.size > 0.0 {
+                        dot(g, sx + 10.0, cy, min(s.size, 4.0), color)
+                    }
+                }
+                .scatter -> g.fillCircle(x: sx + 10.0, y: cy, radius: min(s.size, 5.0), color: color)
+                .area -> {
+                    g.beginLayer(opacity: 0.22)
+                    g.fillRect(x: sx, y: cy - 5.0, width: 20.0, height: 10.0, color: color)
+                    g.endLayer()
+                    g.line(sx, cy - 5.0, sx + 20.0, cy - 5.0, color: color, width: 2.0)
+                }
+                .bars -> g.fillRect(x: sx + 4.0, y: cy - 5.0, width: 12.0, height: 10.0, color: color, radius: 2)
+            }
+            g.text(s.name, x: sx + 26.0, y: cy, size: 11, align: .leading)
+            row += 1
+        }
+    }
+}
+
+// The top left corner of a legend box of that size placed in a corner.
+fn legendCorner(_ f: Frame, _ place: LegendPlace, _ width: Float, _ height: Float) -> (Float, Float) {
+    var x = f.left + 8.0
+    var y = f.top + 8.0
+    if place == .topTrailing || place == .bottomTrailing {
+        x = f.right - 8.0 - width
+    }
+    if place == .bottomLeading || place == .bottomTrailing {
+        y = f.bottom - 8.0 - height
+    }
+    (x, y)
+}
+
+// The corner where a legend box of that size covers the least: the fewest
+// points along the lines, dots, bars and guides under it. Ties go to the
+// first of top left, top right, bottom left, bottom right.
+fn quietestCorner(_ c: Chart, _ g: Graphics, _ f: Frame, _ width: Float, _ height: Float) -> LegendPlace {
+    let places = [LegendPlace.topLeading, LegendPlace.topTrailing, LegendPlace.bottomLeading, LegendPlace.bottomTrailing]
+    var best = LegendPlace.topLeading
+    var fewest = -1
+    for place in places {
+        let corner = legendCorner(f, place, width, height)
+        let x0 = corner.0 - 4.0
+        let y0 = corner.1 - 4.0
+        let x1 = corner.0 + width + 4.0
+        let y1 = corner.1 + height + 4.0
+        var count = 0
+        let base = baseline(f)
+        for s in c.series {
+            let points = canvasPoints(f, s)
+            if s.mark == .bars {
+                // A bar counts when it reaches into the box.
+                var k = 1
+                while k < points.count {
+                    let top = min(points[k], base)
+                    let bottom = max(points[k], base)
+                    let px = points[k - 1]
+                    if px >= x0 && px <= x1 && top <= y1 && bottom >= y0 {
+                        count += 10
+                    }
+                    k += 2
+                }
+            } else {
+                var k = 0
+                while k + 1 < points.count {
+                    count += inside(points[k], points[k + 1], x0, y0, x1, y1)
+                    // Along the line to the next point too, so a long
+                    // straight segment across the box counts.
+                    if s.mark != .scatter && k + 3 < points.count {
+                        for t in 1..8 {
+                            let u = Float(t) / 8.0
+                            count += inside(points[k] + u * (points[k + 2] - points[k]), points[k + 1] + u * (points[k + 3] - points[k + 1]), x0, y0, x1, y1)
+                        }
+                    }
+                    k += 2
+                }
+            }
+        }
+        for guide in c.guides {
+            if guide.kind == .point {
+                count += 20 * inside(f.px(guide.x), f.py(guide.y), x0, y0, x1, y1)
+            }
+        }
+        if fewest < 0 || count < fewest {
+            fewest = count
+            best = place
+        }
+    }
+    best
+}
+
+// 1 when (x, y) is inside the rectangle, else 0.
+fn inside(_ x: Float, _ y: Float, _ x0: Float, _ y0: Float, _ x1: Float, _ y1: Float) -> Int {
+    if x >= x0 && x <= x1 && y >= y0 && y <= y1 {
+        return 1
+    }
+    0
+}
+
+// On a log axis, faint lines at 2 to 9 times each power of ten, as on log
+// paper, when there's room for them.
+fn drawMinorGrid(_ g: Graphics, _ f: Frame, _ bars: Bool) {
+    g.beginLayer(opacity: 0.45)
+    if f.xScale == .log && !bars {
+        for v in minorTicks(f.xMin, f.xMax, f.width) {
+            g.line(f.px(v), f.top, f.px(v), f.bottom, color: .separator)
+        }
+    }
+    if f.yScale == .log {
+        for v in minorTicks(f.yMin, f.yMax, f.height) {
+            g.line(f.left, f.py(v), f.right, f.py(v), color: .separator)
+        }
+    }
+    g.endLayer()
+}
+
+// 2 to 9 times each power of ten from lo to hi, when a power of ten is at
+// least 60 points long on an axis `length` points long; none otherwise.
+fn minorTicks(_ lo: Float, _ hi: Float, _ length: Float) -> [Float] {
+    let decades = log10(hi) - log10(lo)
+    var out: [Float] = []
+    if !(decades > 0.0) || length / decades < 60.0 {
+        return out
+    }
+    var e = floor(log10(lo))
+    while e <= ceil(log10(hi)) {
+        for m in 2..10 {
+            let v = Float(m) * pow(10.0, e)
+            if v > lo && v < hi {
+                out.append(v)
+            }
+        }
+        e += 1.0
+    }
+    out
+}
+
+// The stretches of canvas points (x, y, x, y, …) with no missing point in
+// them: a value that's NaN, or 0 or less on a log axis, breaks the line.
+// Stretches of one point are left out (there's no line to draw).
+fn runs(_ points: [Float]) -> [[Float]] {
+    var out: [[Float]] = []
+    var part: [Float] = []
+    var k = 0
+    while k + 1 < points.count {
+        if points[k].isFinite && points[k + 1].isFinite {
+            part.append(points[k])
+            part.append(points[k + 1])
+        } else {
+            if part.count >= 4 {
+                out.append(part)
+            }
+            part = []
+        }
+        k += 2
+    }
+    if part.count >= 4 {
+        out.append(part)
+    }
+    out
+}
+
+// Draws each stretch as a line.
+fn strokeRuns(_ g: Graphics, _ parts: [[Float]], _ color: Color, _ width: Float, _ dash: [Float]) {
+    if parts.isEmpty {
+        return
+    }
+    g.beginPath()
+    for part in parts {
+        g.lines(part)
+    }
+    g.stroke(color, width: width, dash: dash)
+}

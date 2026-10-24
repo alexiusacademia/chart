@@ -1,0 +1,288 @@
+// chart: the Chart type. A chart is a value you build up: make one, add
+// lines, points, areas and bars to it, set its titles, then draw it into a
+// Canvas (`draw`) or save it as a picture or a PDF (`savePNG`, `savePDF`).
+// It works out its axes, ticks and legend from what's in it.
+//
+// Author: Alexius Academia
+// Date: 2026-10-24
+
+// What a series is drawn as.
+//
+// Cases:
+//   line: A line through its points, in order.
+//   scatter: A dot at each point.
+//   area: A line with the space between it and the axis (0, when 0 is on
+//         the axis) filled in.
+//   bars: A bar for each category, up (or down) from 0.
+public enum Mark {
+    line
+    scatter
+    area
+    bars
+}
+
+// Where the legend goes, inside the plot area. `automatic` picks the
+// corner where it covers the least of the data.
+public enum LegendPlace {
+    automatic
+    topLeading
+    topTrailing
+    bottomLeading
+    bottomTrailing
+    hidden
+}
+
+// One set of data in a chart. Made by `Chart.line`, `scatter`, `area`,
+// `bars` and `function`.
+//
+// Fields:
+//   mark: What it's drawn as.
+//   xs: The x values. For bars, the category numbers 0, 1, 2…
+//   ys: The y values, one for each x.
+//   name: Its name in the legend; a series without one isn't listed.
+//   color: Its color, or nil for the next one of the chart's `colors`.
+//   width: The width of its line, in points.
+//   dash: Its line's dashes and gaps, in points, like `[6, 3]`; `[]` for
+//         a solid line.
+//   size: The radius of its dots, in points. A line with a size above 0
+//         has a dot at each point too.
+public struct Series {
+    mark: Mark
+    xs: [Float]
+    ys: [Float]
+    name: String = ""
+    color: Color? = nil
+    width: Float = 2.0
+    dash: [Float] = []
+    size: Float = 0.0
+}
+
+// What a guide is.
+public enum GuideKind {
+    horizontal
+    vertical
+    point
+}
+
+// A mark for a value of interest: a level across the chart, a line up it at
+// an x, or a labelled point. Made by `Chart.horizontalLine`,
+// `verticalLine` and `point`.
+public struct Guide {
+    kind: GuideKind
+    x: Float = 0.0
+    y: Float = 0.0
+    label: String = ""
+    color: Color? = nil
+}
+
+// The colors series get, in turn, when they aren't given one.
+public fn palette() -> [Color] {
+    [.blue, .orange, .green, .red, .purple, .pink, .gray, .yellow]
+}
+
+// A chart: its data, titles and axes.
+//
+// Fields:
+//   title: The title, over the plot area.
+//   xLabel: What the x axis shows, under it, like "Time (s)".
+//   yLabel: What the y axis shows, beside it.
+//   xMin, xMax, yMin, yMax: The axes' ranges. nil (the default) works
+//                           each out from the data.
+//   xScale, yScale: `.linear` (the default) or `.log`.
+//   equalAspect: Whether a unit is as long across as up, as for a map or a
+//                cross-section. The axis with room to spare is widened.
+//   grid: Whether to draw lines across the plot at the ticks.
+//   legend: Where the legend goes: `.automatic` (the default) picks the
+//           corner that covers the least data; or `.hidden`.
+//   categories: The names under the bars, one for each.
+//   colors: The colors series get in turn when they aren't given one.
+//   series: The data, drawn in order.
+//   guides: The levels, lines and points marked on it, drawn over the data.
+//
+// Example:
+//   var c = chart.Chart(title: "Free fall", xLabel: "Time (s)", yLabel: "Distance (m)")
+//   c.function(from: 0, to: 3, name: "d = g t² / 2") { t in 9.81 * t * t / 2.0 }
+//   c.savePNG("fall.png")
+public struct Chart {
+    title: String = ""
+    xLabel: String = ""
+    yLabel: String = ""
+    xMin: Float? = nil
+    xMax: Float? = nil
+    yMin: Float? = nil
+    yMax: Float? = nil
+    xScale: Scale = .linear
+    yScale: Scale = .linear
+    equalAspect: Bool = false
+    grid: Bool = true
+    legend: LegendPlace = .automatic
+    categories: [String] = []
+    colors: [Color] = palette()
+    series: [Series] = []
+    guides: [Guide] = []
+
+    // Adds a line through the points (xs[i], ys[i]), in order. xs and ys
+    // must be the same length.
+    //
+    // Parameters:
+    //   xs: The x values.
+    //   ys: The y values.
+    //   name: Its name in the legend.
+    //   color: Its color; nil for the next of `colors`.
+    //   width: The line's width, in points.
+    //   dash: Dashes and gaps, in points, like `[6, 3]`.
+    //   markers: Whether to put a dot at each point too.
+    fn line(_ xs: [Float], _ ys: [Float], name: String = "", color: Color? = nil, width: Float = 2.0, dash: [Float] = [], markers: Bool = false) {
+        sameLength(xs, ys, "line")
+        var size = 0.0
+        if markers {
+            size = 3.0
+        }
+        series.append(Series(mark: .line, xs: xs, ys: ys, name: name, color: color, width: width, dash: dash, size: size))
+    }
+
+    // Adds a dot at each point (xs[i], ys[i]).
+    //
+    // Parameters:
+    //   size: The dots' radius, in points.
+    fn scatter(_ xs: [Float], _ ys: [Float], name: String = "", color: Color? = nil, size: Float = 3.5) {
+        sameLength(xs, ys, "scatter")
+        series.append(Series(mark: .scatter, xs: xs, ys: ys, name: name, color: color, size: size))
+    }
+
+    // Adds a line through the points with the space between it and the x
+    // axis (y = 0, when 0 is on the axis) filled in, lightly.
+    fn area(_ xs: [Float], _ ys: [Float], name: String = "", color: Color? = nil, width: Float = 2.0) {
+        sameLength(xs, ys, "area")
+        series.append(Series(mark: .area, xs: xs, ys: ys, name: name, color: color, width: width))
+    }
+
+    // Adds a bar for each category. The first bars set the chart's
+    // `categories` (unless they're set already); later ones must have as
+    // many values, and stand beside the first in each category.
+    //
+    // Parameters:
+    //   labels: The categories' names, written under the bars.
+    //   values: A value for each category.
+    //
+    // Example:
+    //   c.bars(["Jan", "Feb", "Mar"], [12, 18, 9], name: "2025")
+    //   c.bars(["Jan", "Feb", "Mar"], [14, 15, 11], name: "2026")
+    fn bars(_ labels: [String], _ values: [Float], name: String = "", color: Color? = nil) {
+        if labels.count != values.count {
+            fail("bars got {labels.count} labels but {values.count} values: they must be as many")
+        }
+        if categories.isEmpty {
+            categories = labels
+        } else if categories.count != values.count {
+            fail("bars got {values.count} values, but the chart has {categories.count} categories")
+        }
+        var xs: [Float] = []
+        for i in 0..values.count {
+            xs.append(Float(i))
+        }
+        series.append(Series(mark: .bars, xs: xs, ys: values, name: name, color: color))
+    }
+
+    // Adds the line of y = f(x), from `from` to `to`, through `steps` + 1
+    // points.
+    //
+    // Example:
+    //   c.function(from: 0, to: 2.0 * pi, name: "sin") { x in sin(x) }
+    fn function(from: Float, to: Float, steps: Int = 200, name: String = "", color: Color? = nil, width: Float = 2.0, dash: [Float] = [], _ f: fn(Float) -> Float) {
+        let n = max(steps, 1)
+        var xs: [Float] = []
+        var ys: [Float] = []
+        for i in 0..n + 1 {
+            let x = from + (to - from) * Float(i) / Float(n)
+            xs.append(x)
+            ys.append(f(x))
+        }
+        series.append(Series(mark: .line, xs: xs, ys: ys, name: name, color: color, width: width, dash: dash))
+    }
+
+    // Marks a level across the chart at y, dashed, with its label at the
+    // right end.
+    fn horizontalLine(_ y: Float, label: String = "", color: Color? = nil) {
+        guides.append(Guide(kind: .horizontal, y: y, label: label, color: color))
+    }
+
+    // Marks a line up the chart at x, dashed, with its label at the top.
+    fn verticalLine(_ x: Float, label: String = "", color: Color? = nil) {
+        guides.append(Guide(kind: .vertical, x: x, label: label, color: color))
+    }
+
+    // Marks the point (x, y) with a dot and a label beside it.
+    fn point(x: Float, y: Float, label: String = "", color: Color? = nil) {
+        guides.append(Guide(kind: .point, x: x, y: y, label: label, color: color))
+    }
+
+    // Draws the chart into `g`, in the rectangle from (x, y) that is
+    // `width` × `height` points: the whole canvas when they're left out.
+    //
+    // Returns:
+    //   The `Frame`: where the plot area is and what it shows, to draw more
+    //   on top in the data's units, or to read the data under the mouse.
+    //
+    // Example:
+    //   Canvas { g in
+    //       c.draw(g)
+    //   }
+    fn draw(_ g: Graphics, x: Float = 0.0, y: Float = 0.0, width: Float? = nil, height: Float? = nil) -> Frame {
+        let w = width ?? (g.width - x)
+        let h = height ?? (g.height - y)
+        render(self, g, x, y, w, h)
+    }
+
+    // The `Frame` that `draw` would use in that rectangle, without drawing.
+    fn frame(_ g: Graphics, x: Float = 0.0, y: Float = 0.0, width: Float? = nil, height: Float? = nil) -> Frame {
+        let w = width ?? (g.width - x)
+        let h = height ?? (g.height - y)
+        layout(self, g, x, y, w, h)
+    }
+
+    // Saves the chart as a PNG picture (a JPEG if `path` ends in `.jpg`).
+    //
+    // Parameters:
+    //   path: Where to save it.
+    //   width, height: Its size, in points.
+    //   scale: Pixels per point: 2 for a sharp picture on a Retina screen,
+    //          more for print.
+    //   background: The color behind the chart.
+    //
+    // Returns:
+    //   Whether it was saved.
+    fn savePNG(_ path: String, width: Float = 720.0, height: Float = 450.0, scale: Float = 2.0, background: Color = .white) -> Bool {
+        let me = self
+        renderImage(path: path, width: width, height: height, scale: scale) { g in
+            g.fillRect(x: 0, y: 0, width: g.width, height: g.height, color: background)
+            render(me, g, 0.0, 0.0, g.width, g.height)
+        }
+    }
+
+    // Saves the chart as a one-page PDF of `width` × `height` points, its
+    // lines and text kept as shapes and text, to scale up without blurring.
+    //
+    // Returns:
+    //   Whether it was saved.
+    fn savePDF(_ path: String, width: Float = 720.0, height: Float = 450.0) -> Bool {
+        let me = self
+        writePDF(path: path, title: title, width: width, height: height) { g in
+            render(me, g, 0.0, 0.0, g.width, g.height)
+        }
+    }
+}
+
+// Stops the program with a message: for data that doesn't fit together,
+// which is a mistake in the code.
+fn fail(_ message: String) {
+    printError("chart: {message}")
+    exit(1)
+}
+
+// Stops the program unless xs and ys are as long as each other.
+fn sameLength(_ xs: [Float], _ ys: [Float], _ what: String) {
+    if xs.count != ys.count {
+        fail("{what} got {xs.count} x values but {ys.count} y values: they must be as many")
+    }
+}

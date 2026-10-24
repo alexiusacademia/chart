@@ -1,0 +1,242 @@
+// chart: axes. Where the tick marks go (round numbers: 1, 2 or 5 times a
+// power of ten), how their numbers are written, and the `Frame` that turns
+// data values into points on the canvas and back.
+//
+// Author: Alexius Academia
+// Date: 2026-10-24
+
+// How an axis spaces its values.
+//
+// Cases:
+//   linear: Equal steps for equal differences: 0, 10, 20, 30.
+//   log: Equal steps for equal ratios: 1, 10, 100, 1000. Values of 0 or
+//        less can't be shown on it, and are left out.
+public enum Scale {
+    linear
+    log
+}
+
+// Where a chart's plot area is on the canvas, and the data range it shows:
+// what `Chart.draw` returns, to draw more on top in the data's units, or to
+// read the data value under the mouse.
+//
+// Fields:
+//   left, top, width, height: The plot area (inside the axes), in points.
+//   xMin, xMax, yMin, yMax: The data values at its edges.
+//   xScale, yScale: How each axis spaces its values.
+//
+// Example:
+//   let f = c.draw(g)
+//   g.fillCircle(x: f.px(2.5), y: f.py(10.0), radius: 3, color: .red)
+public struct Frame {
+    left: Float
+    top: Float
+    width: Float
+    height: Float
+    xMin: Float
+    xMax: Float
+    yMin: Float
+    yMax: Float
+    xScale: Scale = .linear
+    yScale: Scale = .linear
+
+    // The right edge of the plot area, in points.
+    right: Float { left + width }
+
+    // The bottom edge of the plot area, in points.
+    bottom: Float { top + height }
+
+    // Where the data value x is across the canvas, in points. NaN for a
+    // value of 0 or less on a log axis.
+    fn px(_ x: Float) -> Float {
+        left + fraction(x, xMin, xMax, xScale) * width
+    }
+
+    // Where the data value y is down the canvas, in points (larger values
+    // are higher up). NaN for a value of 0 or less on a log axis.
+    fn py(_ y: Float) -> Float {
+        top + height - fraction(y, yMin, yMax, yScale) * height
+    }
+
+    // The data value at `px` points across the canvas: the opposite of
+    // `px(_:)`, to read the value under the mouse.
+    fn xAt(_ px: Float) -> Float {
+        unfraction((px - left) / width, xMin, xMax, xScale)
+    }
+
+    // The data value at `py` points down the canvas: the opposite of
+    // `py(_:)`.
+    fn yAt(_ py: Float) -> Float {
+        unfraction((top + height - py) / height, yMin, yMax, yScale)
+    }
+
+    // Whether the point (px, py), in points, is inside the plot area.
+    fn contains(_ px: Float, _ py: Float) -> Bool {
+        px >= left && px <= left + width && py >= top && py <= top + height
+    }
+}
+
+// How far v is from lo to hi, as 0 to 1 (beyond for values outside).
+fn fraction(_ v: Float, _ lo: Float, _ hi: Float, _ scale: Scale) -> Float {
+    match scale {
+        .linear -> (v - lo) / (hi - lo)
+        .log -> {
+            if v > 0.0 {
+                (log10(v) - log10(lo)) / (log10(hi) - log10(lo))
+            } else {
+                0.0 / 0.0
+            }
+        }
+    }
+}
+
+// The value `t` of the way from lo to hi.
+fn unfraction(_ t: Float, _ lo: Float, _ hi: Float, _ scale: Scale) -> Float {
+    match scale {
+        .linear -> lo + t * (hi - lo)
+        .log -> pow(10.0, log10(lo) + t * (log10(hi) - log10(lo)))
+    }
+}
+
+// A round step, 1, 2 or 5 times a power of ten, that gives no more than
+// about `count` ticks over `span` (the smallest such step).
+//
+// Example:
+//   print(chart.tickStep(span: 7.3, count: 5))   // 2.0
+public fn tickStep(span: Float, count: Int) -> Float {
+    if !(span > 0.0) || !span.isFinite {
+        return 1.0
+    }
+    let raw = span / Float(max(count, 1))
+    let power = pow(10.0, floor(log10(raw)))
+    let lead = raw / power
+    if lead <= 1.0 {
+        power
+    } else if lead <= 2.0 {
+        2.0 * power
+    } else if lead <= 5.0 {
+        5.0 * power
+    } else {
+        10.0 * power
+    }
+}
+
+// The tick values from `from` to `to` on a linear axis: multiples of
+// `tickStep(span:count:)`, no more than about `count` of them.
+//
+// Example:
+//   print(chart.ticks(from: 0, to: 7.3, count: 5))   // [0.0, 2.0, 4.0, 6.0]
+public fn ticks(from: Float, to: Float, count: Int) -> [Float] {
+    let step = tickStep(span: to - from, count: count)
+    var out: [Float] = []
+    var k = ceil(from / step - 1e-9)
+    while k * step <= to + step * 1e-9 && out.count < 100 {
+        // k × step rather than adding steps up, so 0.1 + 0.2 doesn't creep.
+        var v = k * step
+        if abs(v) < step * 1e-9 {
+            v = 0.0
+        }
+        out.append(v)
+        k += 1.0
+    }
+    out
+}
+
+// The tick values from `from` to `to` (both above 0) on a log axis: the
+// powers of ten, every second or more of them when there are many, and
+// with 2 and 5 times them when the range is under two powers of ten.
+//
+// Example:
+//   print(chart.logTicks(from: 1, to: 1000, count: 5))   // [1.0, 10.0, 100.0, 1000.0]
+public fn logTicks(from: Float, to: Float, count: Int) -> [Float] {
+    if !(from > 0.0) || !(to > from) {
+        return []
+    }
+    let lo = floor(log10(from) + 1e-9)
+    let hi = ceil(log10(to) - 1e-9)
+    let decades = hi - lo
+    var out: [Float] = []
+    if decades <= 2.0 {
+        var e = lo
+        while e <= hi {
+            for m in [1.0, 2.0, 5.0] {
+                let v = m * pow(10.0, e)
+                if v >= from * (1.0 - 1e-9) && v <= to * (1.0 + 1e-9) {
+                    out.append(v)
+                }
+            }
+            e += 1.0
+        }
+        return out
+    }
+    let every = max(1.0, ceil(decades / Float(max(count, 1))))
+    var e = ceil(lo / every) * every
+    while e <= hi {
+        let v = pow(10.0, e)
+        if v >= from * (1.0 - 1e-9) && v <= to * (1.0 + 1e-9) {
+            out.append(v)
+        }
+        e += every
+    }
+    out
+}
+
+// A tick's number as text, with as many decimals as the step between ticks
+// needs to be written exactly (step 0.25: 2). Very large and very small numbers are written like `2.5e6`.
+//
+// Example:
+//   print(chart.tickLabel(0.5, step: 0.25))   // 0.50
+public fn tickLabel(_ value: Float, step: Float) -> String {
+    // As many decimals as the step needs to be written exactly (0.25: 2).
+    var decimals = 0
+    if step > 0.0 && step.isFinite {
+        var scaled = step
+        while decimals < 6 && abs(scaled - round(scaled)) > 1e-6 * scaled {
+            decimals += 1
+            scaled *= 10.0
+        }
+    }
+    if value == 0.0 {
+        // 0 has as many decimals as its neighbours, and no minus sign.
+        return 0.0.formatted(decimals: decimals)
+    }
+    let size = abs(value)
+    if size >= 1e6 || size < 1e-4 {
+        return scientific(value)
+    }
+    value.formatted(decimals: decimals)
+}
+
+// A log axis's tick as text: plain from 0.0001 to 100000, like `1e6`
+// beyond.
+fn logLabel(_ value: Float) -> String {
+    let size = abs(value)
+    if size >= 1e6 || size < 1e-4 {
+        return scientific(value)
+    }
+    var decimals = 0
+    if size < 1.0 {
+        decimals = Int(ceil(-log10(size) - 1e-9))
+    }
+    value.formatted(decimals: decimals)
+}
+
+// v as a mantissa and a power of ten, like `2.5e6` or `-1e-5`, with no
+// more digits than it needs (up to 3 decimals).
+fn scientific(_ v: Float) -> String {
+    var e = floor(log10(abs(v)))
+    var m = v / pow(10.0, e)
+    // Rounding can make the mantissa 10: write it as 1 of the next power.
+    if abs(round(m * 1000.0) / 1000.0) >= 10.0 {
+        e += 1.0
+        m = m / 10.0
+    }
+    var text = m.formatted(decimals: 3)
+    while text.hasSuffix("0") {
+        text = text.substring(from: 0, to: text.count - 1)
+    }
+    if text.hasSuffix(".") {
+        text = text.substring(from: 0, to: text.count - 1)
+    }
+    "{text}e{Int(e)}"
+}
