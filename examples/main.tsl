@@ -29,4 +29,6 @@ fn main() {
     grain.verticalLine(0.075, label: "No. 200")
     grain.verticalLine(4.75, label: "No. 4")
     print(grain.savePNG("docs/grain.png", width: 640, height: 380))
+
+    gallery()
 }

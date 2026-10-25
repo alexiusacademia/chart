@@ -133,8 +133,13 @@ fn axisTicks(_ lo: Float, _ hi: Float, _ scale: Scale, _ length: Float, _ spacin
     }
 }
 
-// A tick's text on an axis.
-fn axisText(_ v: Float, _ step: Float, _ scale: Scale) -> String {
+// A tick's text on an axis whose ticks are `all`. When any of them is
+// written like `1e6`, they all are, so an axis doesn't mix `100000` and
+// `1e6`.
+fn axisText(_ v: Float, _ all: [Float], _ step: Float, _ scale: Scale) -> String {
+    if v != 0.0 && needsScientific(all) {
+        return scientific(v)
+    }
     match scale {
         .linear -> tickLabel(v, step: step)
         .log -> logLabel(v)
@@ -146,7 +151,7 @@ fn widestYText(_ g: Graphics, _ lo: Float, _ hi: Float, _ scale: Scale, _ length
     let t = axisTicks(lo, hi, scale, length, yTickSpacing)
     var w = 0.0
     for v in t.0 {
-        w = max(w, g.textWidth(axisText(v, t.1, scale), size: tickSize))
+        w = max(w, g.textWidth(axisText(v, t.0, t.1, scale), size: tickSize))
     }
     w
 }
@@ -173,7 +178,7 @@ fn layout(_ c: Chart, _ g: Graphics, _ x: Float, _ y: Float, _ width: Float, _ h
     if !hasBars(c) {
         let t = axisTicks(xr.0, xr.1, c.xScale, max(width - left - right, 10.0), xTickSpacing)
         if let last = t.0.last {
-            right = max(right, g.textWidth(axisText(last, t.1, c.xScale), size: tickSize) / 2.0 + 4.0)
+            right = max(right, g.textWidth(axisText(last, t.0, t.1, c.xScale), size: tickSize) / 2.0 + 4.0)
         }
     }
     let pw = max(width - left - right, 10.0)
@@ -333,11 +338,11 @@ fn render(_ c: Chart, _ g: Graphics, _ x: Float, _ y: Float, _ width: Float, _ h
         drawCategories(c, g, f, x, x + width)
     } else {
         for v in xt.0 {
-            g.text(axisText(v, xt.1, f.xScale), x: f.px(v), y: f.bottom + 5.0, size: tickSize, color: .secondary, align: .top)
+            g.text(axisText(v, xt.0, xt.1, f.xScale), x: f.px(v), y: f.bottom + 5.0, size: tickSize, color: .secondary, align: .top)
         }
     }
     for v in yt.0 {
-        g.text(axisText(v, yt.1, f.yScale), x: f.left - 6.0, y: f.py(v), size: tickSize, color: .secondary, align: .trailing)
+        g.text(axisText(v, yt.0, yt.1, f.yScale), x: f.left - 6.0, y: f.py(v), size: tickSize, color: .secondary, align: .trailing)
     }
     if c.title != "" {
         g.text(c.title, x: f.left, y: f.top - 10.0, size: 14, weight: .semibold, align: .bottomLeading)

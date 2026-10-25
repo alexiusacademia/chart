@@ -1,0 +1,71 @@
+// The website's gallery: `tessel run examples` saves these pictures in
+// website/assets/gallery/, next to the README's. Each chart is written
+// as website/index.html shows it (which saves it with savePNG instead of
+// save), so keep the two the same.
+//
+// Author: Alexius Academia
+// Date: 2026-10-25
+
+import ".."
+
+// Saves a gallery picture at the size the website shows it.
+fn save(_ c: chart.Chart, _ name: String) {
+    print(c.savePNG("website/assets/gallery/{name}.png", width: 640, height: 400))
+}
+
+fn gallery() {
+    createFolder("website/assets/gallery")
+
+    var c = chart.Chart(title: "Free fall", xLabel: "Time (s)", yLabel: "Distance (m)")
+    c.function(from: 0, to: 3, name: "d = g t² / 2") { t in 9.81 * t * t / 2.0 }
+    c.point(x: 2, y: 19.62, label: "19.6 m after 2 s")
+    save(c, "fall")
+
+    var rain = chart.Chart(title: "Monthly rainfall", yLabel: "Rain (mm)")
+    let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    rain.bars(months, [19, 8, 12, 25, 110, 260, 420, 470, 360, 190, 130, 60], name: "2025")
+    rain.bars(months, [25, 15, 9, 40, 150, 230, 380, 520, 300, 210, 100, 45], name: "2026")
+    save(rain, "rainfall")
+
+    var fit = chart.Chart(title: "Spring test", xLabel: "Load (kN)", yLabel: "Extension (mm)")
+    fit.scatter([0, 1, 2, 3, 4, 5, 6], [0.1, 1.9, 4.1, 6.0, 8.2, 9.7, 12.1], name: "measured")
+    fit.line([0, 6], [-0.02, 12.04], name: "fit", dash: [6, 3])
+    save(fit, "spring")
+
+    var grain = chart.Chart(title: "Grain size distribution", xLabel: "Particle size (mm)", yLabel: "Percent finer (%)",
+        yMin: 0, yMax: 100, xScale: .log)
+    grain.line([0.002, 0.01, 0.075, 0.25, 0.6, 2.0, 4.75, 19], [2, 8, 22, 45, 63, 82, 93, 100], name: "sample A", markers: true)
+    grain.verticalLine(0.075, label: "No. 200")
+    grain.verticalLine(4.75, label: "No. 4")
+    save(grain, "grain")
+
+    var flood = chart.Chart(title: "Flood routing", xLabel: "Time (h)", yLabel: "Flow (m³/s)")
+    let hours = [0.0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72]
+    flood.area(hours, [20, 80, 310, 520, 450, 330, 230, 160, 110, 75, 50, 35, 25], name: "inflow")
+    flood.line(hours, [20, 32, 110, 240, 330, 340, 300, 240, 180, 130, 90, 62, 44], name: "outflow")
+    flood.horizontalLine(300, label: "spillway capacity")
+    save(flood, "flood")
+
+    var waves = chart.Chart(title: "Damped oscillation", xLabel: "Time (s)", yLabel: "Displacement (mm)")
+    waves.function(from: 0, to: 10, steps: 400, name: "underdamped") { t in 10.0 * exp(-0.3 * t) * cos(3.0 * t) }
+    waves.function(from: 0, to: 10, name: "envelope", dash: [4, 4]) { t in 10.0 * exp(-0.3 * t) }
+    waves.function(from: 0, to: 10, name: "critically damped") { t in 10.0 * (1.0 + 3.0 * t) * exp(-3.0 * t) }
+    save(waves, "waves")
+
+    var growth = chart.Chart(title: "Bacterial growth", xLabel: "Time (h)", yLabel: "Cells per mL", yScale: .log)
+    growth.scatter([0, 2, 4, 6, 8, 10, 12], [1.2e3, 5.1e3, 1.9e4, 8.3e4, 3.1e5, 1.4e6, 5.6e6], name: "counted")
+    growth.function(from: 0, to: 12, name: "doubling every 1 h") { t in 1.2e3 * pow(2.0, 1.02 * t) }
+    save(growth, "growth")
+
+    var section = chart.Chart(title: "Channel cross-section", xLabel: "Offset (m)", yLabel: "Elevation (m)", equalAspect: true)
+    section.line([0, 2, 5, 7, 9, 12, 14], [6, 5.5, 1.2, 0, 0.3, 4.8, 6], name: "ground", markers: true)
+    section.horizontalLine(3.2, label: "water 3.2 m")
+    save(section, "section")
+
+    // The picture shown when a link to the website is shared.
+    var share = chart.Chart(title: "chart: charts for Tessel", xLabel: "Time (h)", yLabel: "Flow (m³/s)")
+    share.area(hours, [20, 80, 310, 520, 450, 330, 230, 160, 110, 75, 50, 35, 25], name: "inflow")
+    share.line(hours, [20, 32, 110, 240, 330, 340, 300, 240, 180, 130, 90, 62, 44], name: "outflow")
+    share.horizontalLine(300, label: "spillway capacity")
+    print(share.savePNG("website/assets/share.png", width: 600, height: 315, scale: 2))
+}

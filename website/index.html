@@ -1,0 +1,367 @@
+<!doctype html>
+<!--
+  chart's website: https://chart-package.syncster.dev
+  Author: Alexius Academia
+  Date: 2026-10-25
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chart · Charts for Tessel</title>
+  <meta name="description" content="chart is a Tessel library for line, scatter, area and bar charts on linear or log axes, drawn in a Canvas or saved as PNG and PDF.">
+  <meta name="theme-color" content="#0a6cf0">
+  <link rel="canonical" href="https://chart-package.syncster.dev/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="chart">
+  <meta property="og:title" content="chart · Charts for Tessel">
+  <meta property="og:description" content="Lines, dots, areas and bars on linear or log axes, with ticks, titles and a legend worked out for you. Draw in a Canvas, or save PNG and PDF.">
+  <meta property="og:url" content="https://chart-package.syncster.dev/">
+  <meta property="og:image" content="https://chart-package.syncster.dev/assets/share.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="A flood routing chart made with chart: inflow and outflow over time, with the spillway capacity marked">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0a6cf0"/><path d="M6 23 L12 15 L17 19 L26 8" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26" cy="8" r="2.6" fill="#f08c00"/></svg>
+      chart <small>for Tessel</small>
+    </a>
+    <nav>
+      <a href="#gallery">Gallery</a>
+      <a href="#start" class="optional">Start</a>
+      <a href="#reference">Reference</a>
+      <a href="https://github.com/alexiusacademia/chart">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">A Tessel library</p>
+      <h1>Charts for Tessel programs.</h1>
+      <p class="lede">Lines, dots, areas and bars, on linear or log axes, with ticks, titles and a legend worked out for you. Draw one into a <code>Canvas</code>, or save it as a PNG or a PDF from a program with no window at all.</p>
+      <div class="install">
+        <code>tessel add chart</code>
+        <button class="copy" type="button" data-copy="tessel add chart">Copy</button>
+      </div>
+      <div class="buttons">
+        <a class="button primary" href="#gallery">See the gallery</a>
+        <a class="button" href="https://github.com/alexiusacademia/chart">Code on GitHub</a>
+      </div>
+      <p class="meta">MIT licence · Tessel 0.10 or later · no dependencies</p>
+    </div>
+    <figure class="shot">
+      <picture>
+        <source srcset="assets/app-dark.png" media="(prefers-color-scheme: dark)">
+        <img src="assets/app.png" width="1280" height="800" alt="A Tessel window showing a cooling curve, with a red dot and its reading where the mouse is">
+      </picture>
+    </figure>
+  </div>
+</div>
+
+<section id="gallery">
+  <div class="wrap">
+    <h2>Gallery</h2>
+    <p class="intro">Every picture here was saved by the code under it, with nothing but <code>import chart</code>. The ranges, ticks, labels and legend place are all chosen by the library.</p>
+
+    <div class="gallery">
+
+      <article class="card">
+        <a href="assets/gallery/fall.png"><img src="assets/gallery/fall.png" width="1280" height="800" loading="lazy" alt="A rising curve of distance against time, with a marked point at 2 seconds"></a>
+        <div class="body">
+          <h3>A function and a point</h3>
+          <p>Plot y = f(x) from a block, and label one point on it.</p>
+          <div class="tags"><span>function</span><span>point</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var c = chart.Chart(title: "Free fall", xLabel: "Time (s)", yLabel: "Distance (m)")
+c.function(from: 0, to: 3, name: "d = g t² / 2") { t in 9.81 * t * t / 2.0 }
+c.point(x: 2, y: 19.62, label: "19.6 m after 2 s")
+c.savePNG("fall.png")</pre>
+          </details>
+        </div>
+      </article>
+
+      <article class="card">
+        <a href="assets/gallery/rainfall.png"><img src="assets/gallery/rainfall.png" width="1280" height="800" loading="lazy" alt="Blue and orange bars for each month, highest in July and August"></a>
+        <div class="body">
+          <h3>Grouped bars</h3>
+          <p>Each <code>bars</code> call adds a series; they stand side by side.</p>
+          <div class="tags"><span>bars</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var rain = chart.Chart(title: "Monthly rainfall", yLabel: "Rain (mm)")
+let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+rain.bars(months, [19, 8, 12, 25, 110, 260, 420, 470, 360, 190, 130, 60], name: "2025")
+rain.bars(months, [25, 15, 9, 40, 150, 230, 380, 520, 300, 210, 100, 45], name: "2026")
+rain.savePNG("rainfall.png")</pre>
+          </details>
+        </div>
+      </article>
+
+      <article class="card">
+        <a href="assets/gallery/flood.png"><img src="assets/gallery/flood.png" width="1280" height="800" loading="lazy" alt="A filled inflow hydrograph and a lower, later outflow curve, with the spillway capacity as a dashed level"></a>
+        <div class="body">
+          <h3>An area, a line and a level</h3>
+          <p>A filled area under one series, another on top, and a named level across.</p>
+          <div class="tags"><span>area</span><span>line</span><span>horizontalLine</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var flood = chart.Chart(title: "Flood routing", xLabel: "Time (h)", yLabel: "Flow (m³/s)")
+let hours = [0.0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72]
+flood.area(hours, [20, 80, 310, 520, 450, 330, 230, 160, 110, 75, 50, 35, 25], name: "inflow")
+flood.line(hours, [20, 32, 110, 240, 330, 340, 300, 240, 180, 130, 90, 62, 44], name: "outflow")
+flood.horizontalLine(300, label: "spillway capacity")
+flood.savePNG("flood.png")</pre>
+          </details>
+        </div>
+      </article>
+
+      <article class="card">
+        <a href="assets/gallery/spring.png"><img src="assets/gallery/spring.png" width="1280" height="800" loading="lazy" alt="Blue measured points along an orange dashed fitted line"></a>
+        <div class="body">
+          <h3>Points and a fitted line</h3>
+          <p>Measured dots with a dashed line through them.</p>
+          <div class="tags"><span>scatter</span><span>line</span><span>dash</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var fit = chart.Chart(title: "Spring test", xLabel: "Load (kN)", yLabel: "Extension (mm)")
+fit.scatter([0, 1, 2, 3, 4, 5, 6], [0.1, 1.9, 4.1, 6.0, 8.2, 9.7, 12.1], name: "measured")
+fit.line([0, 6], [-0.02, 12.04], name: "fit", dash: [6, 3])
+fit.savePNG("spring.png")</pre>
+          </details>
+        </div>
+      </article>
+
+      <article class="card">
+        <a href="assets/gallery/waves.png"><img src="assets/gallery/waves.png" width="1280" height="800" loading="lazy" alt="An oscillation dying away inside a dashed envelope, and a critically damped curve that settles without swinging"></a>
+        <div class="body">
+          <h3>Several functions</h3>
+          <p>Colours come in turn from the palette; the legend goes where it covers the least.</p>
+          <div class="tags"><span>function</span><span>legend</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var waves = chart.Chart(title: "Damped oscillation", xLabel: "Time (s)", yLabel: "Displacement (mm)")
+waves.function(from: 0, to: 10, steps: 400, name: "underdamped") { t in 10.0 * exp(-0.3 * t) * cos(3.0 * t) }
+waves.function(from: 0, to: 10, name: "envelope", dash: [4, 4]) { t in 10.0 * exp(-0.3 * t) }
+waves.function(from: 0, to: 10, name: "critically damped") { t in 10.0 * (1.0 + 3.0 * t) * exp(-3.0 * t) }
+waves.savePNG("waves.png")</pre>
+          </details>
+        </div>
+      </article>
+
+      <article class="card">
+        <a href="assets/gallery/growth.png"><img src="assets/gallery/growth.png" width="1280" height="800" loading="lazy" alt="Cell counts on a log axis from a thousand to ten million, on a straight line"></a>
+        <div class="body">
+          <h3>A log axis</h3>
+          <p>Values over many powers of ten, with faint lines at 2 to 9 of each.</p>
+          <div class="tags"><span>yScale: .log</span><span>scatter</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var growth = chart.Chart(title: "Bacterial growth", xLabel: "Time (h)", yLabel: "Cells per mL", yScale: .log)
+growth.scatter([0, 2, 4, 6, 8, 10, 12], [1.2e3, 5.1e3, 1.9e4, 8.3e4, 3.1e5, 1.4e6, 5.6e6], name: "counted")
+growth.function(from: 0, to: 12, name: "doubling every 1 h") { t in 1.2e3 * pow(2.0, 1.02 * t) }
+growth.savePNG("growth.png")</pre>
+          </details>
+        </div>
+      </article>
+
+      <article class="card">
+        <a href="assets/gallery/grain.png"><img src="assets/gallery/grain.png" width="1280" height="800" loading="lazy" alt="A grain size curve on a log axis from 0.001 to 20 mm, with the No. 200 and No. 4 sieves marked"></a>
+        <div class="body">
+          <h3>Log x with marked values</h3>
+          <p>Fixed y range, dots on each point, and named lines up the chart.</p>
+          <div class="tags"><span>xScale: .log</span><span>markers</span><span>verticalLine</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var grain = chart.Chart(title: "Grain size distribution", xLabel: "Particle size (mm)", yLabel: "Percent finer (%)",
+    yMin: 0, yMax: 100, xScale: .log)
+grain.line([0.002, 0.01, 0.075, 0.25, 0.6, 2.0, 4.75, 19], [2, 8, 22, 45, 63, 82, 93, 100], name: "sample A", markers: true)
+grain.verticalLine(0.075, label: "No. 200")
+grain.verticalLine(4.75, label: "No. 4")
+grain.savePNG("grain.png")</pre>
+          </details>
+        </div>
+      </article>
+
+      <article class="card">
+        <a href="assets/gallery/section.png"><img src="assets/gallery/section.png" width="1280" height="800" loading="lazy" alt="A channel cross-section drawn to scale, with the water level marked at 3.2 m"></a>
+        <div class="body">
+          <h3>Drawn to scale</h3>
+          <p>With <code>equalAspect</code>, a metre is as long across as up.</p>
+          <div class="tags"><span>equalAspect</span><span>markers</span></div>
+          <details><summary>Code</summary>
+<pre class="tsl">var section = chart.Chart(title: "Channel cross-section", xLabel: "Offset (m)", yLabel: "Elevation (m)", equalAspect: true)
+section.line([0, 2, 5, 7, 9, 12, 14], [6, 5.5, 1.2, 0, 0.3, 4.8, 6], name: "ground", markers: true)
+section.horizontalLine(3.2, label: "water 3.2 m")
+section.savePNG("section.png")</pre>
+          </details>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <h2>Getting started</h2>
+    <p class="intro">Add the library to a project, make a <code>chart.Chart</code>, add data, and save or draw it. A chart is a plain value: build it with <code>var</code>, and make a new one whenever the data changes.</p>
+    <div class="split">
+      <div class="pair">
+        <pre>tessel add chart</pre>
+<pre class="tsl">import chart
+
+fn main() {
+    var c = chart.Chart(title: "Free fall", xLabel: "Time (s)", yLabel: "Distance (m)")
+    c.function(from: 0, to: 3, name: "d = g t² / 2") { t in 9.81 * t * t / 2.0 }
+    c.point(x: 2, y: 19.62, label: "19.6 m after 2 s")
+    c.savePNG("fall.png")
+}</pre>
+      </div>
+      <figure class="shot"><img src="assets/gallery/fall.png" width="1280" height="800" loading="lazy" alt="The free fall chart the code saves"></figure>
+    </div>
+
+    <div class="features">
+      <div class="feature"><b>Worked-out axes</b><span>Round ticks (1, 2 or 5 × 10ⁿ), labels with just enough decimals, and ranges taken from the data.</span></div>
+      <div class="feature"><b>Screen, PNG and PDF</b><span>The same chart draws in a window, saves a sharp PNG, or a PDF that stays crisp at any size.</span></div>
+      <div class="feature"><b>Light and dark</b><span>In a window, a chart follows the system appearance by itself.</span></div>
+    </div>
+
+    <h3 id="window">In a window</h3>
+    <p class="intro"><code>draw</code> returns the chart's <code>Frame</code>. It turns data into points for drawing on top, and points back into data for reading the value under the mouse.</p>
+    <div class="split">
+<pre class="tsl">import chart
+
+// A chart in a window, with a readout that follows the mouse.
+app Cooling(title: "Cooling", width: 640, height: 400) {
+    state mouseX: Float = -1.0
+
+    Canvas { g in
+        var c = chart.Chart(title: "Newton's law of cooling", xLabel: "Time (min)", yLabel: "Temperature (°C)")
+        c.function(from: 0, to: 30, name: "coffee") { t in 22.0 + 68.0 * exp(-0.08 * t) }
+        c.horizontalLine(22, label: "room")
+        let f = c.draw(g)
+        // The mouse's position, turned into a time on the chart.
+        let t = f.xAt(mouseX)
+        if t &gt;= 0.0 &amp;&amp; t &lt;= 30.0 {
+            let temp = 22.0 + 68.0 * exp(-0.08 * t)
+            g.fillCircle(x: f.px(t), y: f.py(temp), radius: 4, color: .red)
+            g.text("{t.formatted(decimals: 1)} min: {temp.formatted(decimals: 1)} °C", x: f.px(t) + 8.0, y: f.py(temp) - 6.0, size: 12, align: .bottomLeading, halo: .background, haloWidth: 2.0)
+        }
+    }
+    .onPointer { e in
+        mouseX = e.x
+    }
+    .padding(12)
+}</pre>
+      <div class="pair">
+        <figure class="shot"><img src="assets/app.png" width="1280" height="800" loading="lazy" alt="The cooling app in the light appearance"></figure>
+        <figure class="shot"><img src="assets/app-dark.png" width="1280" height="800" loading="lazy" alt="The same window in the dark appearance"></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="reference">
+  <div class="wrap">
+    <h2>Reference</h2>
+    <p class="intro">Everything but the data is optional. A series with a <code>name</code> is listed in the legend; one with no <code>color</code> gets the next of the chart's colours. A value that is <code>NaN</code>, or 0 or less on a log axis, breaks the line there.</p>
+
+    <h3>What goes on a chart</h3>
+    <div class="table"><table>
+      <tr><th>Method</th><th>Draws</th></tr>
+      <tr><td><code>line(xs, ys, name:, color:, width:, dash:, markers:)</code></td><td>A line through the points, in order. <code>dash: [6, 3]</code> makes it dashed; <code>markers: true</code> puts a dot on each point.</td></tr>
+      <tr><td><code>scatter(xs, ys, name:, color:, size:)</code></td><td>A dot at each point.</td></tr>
+      <tr><td><code>area(xs, ys, name:, color:, width:)</code></td><td>A line with the space down to the x axis (to 0, when 0 is on it) lightly filled.</td></tr>
+      <tr><td><code>bars(labels, values, name:, color:)</code></td><td>A bar for each category. Several <code>bars</code> calls stand side by side.</td></tr>
+      <tr><td><code>function(from:, to:, steps:, name:, …) { x in … }</code></td><td>The line of y = f(x).</td></tr>
+      <tr><td><code>horizontalLine(y, label:, color:)</code></td><td>A dashed level across the chart, named at its right end.</td></tr>
+      <tr><td><code>verticalLine(x, label:, color:)</code></td><td>A dashed line up the chart, named at its top.</td></tr>
+      <tr><td><code>point(x:, y:, label:, color:)</code></td><td>A dot with a label beside it.</td></tr>
+    </table></div>
+
+    <h3>The chart's settings</h3>
+    <p class="intro">They're the <code>Chart</code>'s fields: give them when you make it (in this order), or set them afterwards.</p>
+    <div class="table"><table>
+      <tr><th>Field</th><th></th></tr>
+      <tr><td><code>title</code>, <code>xLabel</code>, <code>yLabel</code></td><td>The title, and what each axis shows.</td></tr>
+      <tr><td><code>xMin</code>, <code>xMax</code>, <code>yMin</code>, <code>yMax</code></td><td>The axes' ranges. Left out, each is worked out from the data: lines fill the width exactly, dots get a little room, the y axis gets 5% to spare, and bars and areas stand on 0.</td></tr>
+      <tr><td><code>xScale</code>, <code>yScale</code></td><td><code>.linear</code>, or <code>.log</code> for values over several powers of ten.</td></tr>
+      <tr><td><code>equalAspect</code></td><td>A unit as long across as up, for maps and cross-sections.</td></tr>
+      <tr><td><code>grid</code></td><td>Lines across the plot at the ticks (on by default).</td></tr>
+      <tr><td><code>legend</code></td><td><code>.automatic</code> (the corner covering the least data), <code>.topLeading</code>, <code>.topTrailing</code>, <code>.bottomLeading</code>, <code>.bottomTrailing</code> or <code>.hidden</code>.</td></tr>
+      <tr><td><code>colors</code></td><td>The colours series get in turn: blue, orange, green, red, purple, pink, gray, yellow.</td></tr>
+    </table></div>
+
+    <h3>Drawing and saving</h3>
+    <div class="table"><table>
+      <tr><th>Method</th><th></th></tr>
+      <tr><td><code>draw(g, x:, y:, width:, height:)</code></td><td>Draws into a <code>Canvas</code>'s (or <code>renderImage</code>'s) <code>Graphics</code>: the whole canvas, or the rectangle given, so one canvas can hold several charts. Returns the <code>Frame</code>.</td></tr>
+      <tr><td><code>savePNG(path, width:, height:, scale:, background:)</code></td><td>Saves a PNG (a JPEG if the path ends in <code>.jpg</code>), 720 × 450 points at 2 pixels per point unless you say.</td></tr>
+      <tr><td><code>savePDF(path, width:, height:)</code></td><td>Saves a one-page PDF, with lines and text kept sharp at any size.</td></tr>
+      <tr><td><code>frame(g, x:, y:, width:, height:)</code></td><td>The <code>Frame</code> that <code>draw</code> would use, without drawing.</td></tr>
+    </table></div>
+
+    <h3>Frames and ticks</h3>
+    <p class="intro">A <code>Frame</code>'s <code>px(x)</code> and <code>py(y)</code> turn data into canvas points, and <code>xAt(px)</code> and <code>yAt(py)</code> turn them back. It also has the plot area's <code>left</code>, <code>top</code>, <code>width</code>, <code>height</code>, <code>right</code> and <code>bottom</code>, and <code>contains(px, py)</code>. For axes of your own, <code>tickStep(span:count:)</code>, <code>ticks(from:to:count:)</code>, <code>logTicks(from:to:count:)</code> and <code>tickLabel(value, step:)</code> are public too.</p>
+
+    <h3>Mistakes</h3>
+    <p class="intro">Data that doesn't fit together, like 5 x values with 4 y values, is a mistake in the code. It stops the program with a message:</p>
+    <pre>chart: line got 5 x values but 4 y values: they must be as many</pre>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>chart · made by Alexius Academia · MIT licence</span>
+    <nav>
+      <a href="https://github.com/alexiusacademia/chart">GitHub</a>
+      <a href="https://tessel-lang.syncster.dev">Tessel</a>
+      <a href="https://tessel-lang.syncster.dev/guides/libraries/">Libraries guide</a>
+      <a href="https://syncster.dev">syncster.dev</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+// Colours the Tessel code: keywords, strings, numbers and comments.
+(function () {
+  const keywords = /^(import|fn|var|let|if|else|for|in|while|return|app|state|struct|enum|match|true|false|nil)$/;
+  const token = /(\/\/[^\n]*)|("(?:\\.|[^"\\])*")|(\b\d+(?:\.\d+)?(?:e-?\d+)?\b)|([A-Za-z_]\w*)/g;
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  for (const pre of document.querySelectorAll("pre.tsl")) {
+    const text = pre.textContent;
+    let out = "", last = 0, m;
+    while ((m = token.exec(text))) {
+      out += esc(text.slice(last, m.index));
+      const t = esc(m[0]);
+      if (m[1]) out += '<span class="c">' + t + "</span>";
+      else if (m[2]) out += '<span class="s">' + t + "</span>";
+      else if (m[3]) out += '<span class="n">' + t + "</span>";
+      else if (keywords.test(m[4])) out += '<span class="k">' + t + "</span>";
+      else out += t;
+      last = token.lastIndex;
+    }
+    pre.innerHTML = out + esc(text.slice(last));
+  }
+  for (const b of document.querySelectorAll("[data-copy]")) {
+    b.addEventListener("click", () => {
+      navigator.clipboard.writeText(b.dataset.copy).then(() => {
+        b.textContent = "Copied";
+        setTimeout(() => { b.textContent = "Copy"; }, 1500);
+      }, () => {});
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -221,6 +221,12 @@ fn logLabel(_ value: Float) -> String {
     value.formatted(decimals: decimals)
 }
 
+// Whether any of the values is written like `1e6`: 1 000 000 or more, or
+// less than 0.0001 (0 aside).
+fn needsScientific(_ values: [Float]) -> Bool {
+    values.any(where: { v in v != 0.0 && (abs(v) >= 1e6 || abs(v) < 1e-4) })
+}
+
 // v as a mantissa and a power of ten, like `2.5e6` or `-1e-5`, with no
 // more digits than it needs (up to 3 decimals).
 fn scientific(_ v: Float) -> String {

@@ -5,6 +5,8 @@ dots, areas and bars, on linear or log axes, with ticks, titles and a
 legend worked out for you. Draw one into a `Canvas`, or save it as a PNG
 or a PDF from a program with no window at all.
 
+See the gallery at **[chart-package.syncster.dev](https://chart-package.syncster.dev)**.
+
 ```tessel
 import chart
 
